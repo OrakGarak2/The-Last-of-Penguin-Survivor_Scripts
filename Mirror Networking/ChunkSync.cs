@@ -96,20 +96,25 @@ public class ChunkSync : NetworkBehaviour
         }
     }
 
-    void SendChunkData(Chunk chunk, int i, int j, NetworkConnection conn)
+    void SendChunkData(Chunk chunk, int x, int y, NetworkConnection conn)
     {
+        // 데이터 직렬화
         byte[] byteBlockData = SerializeToJson(chunk.BlockInVoxel);
         byte[] byteBlockHeightData = SerializeToJson(chunk.BlocksHeightInVoxelFloor);
 
-        int splitBlockSize = byteBlockData.Length / splitNumber;
+        // 직렬화한 데이터를 나눌 크기
+        int splitBlockSize = byteBlockData.Length / splitNumber; 
         int splitBlockHeightSize = byteBlockHeightData.Length / splitNumber;
 
-        for (int dataIndex = 0; dataIndex < splitNumber; dataIndex++)
+        // 데이터를 전송할 횟수만큼 반복
+        for (int dataIndex = 0; dataIndex < splitNumber; dataIndex++) 
         {
+             // 마지막 전송 데이터일 때 true
             bool isLastPart = dataIndex == splitNumber - 1;
             
+             // 배열을 복사할 때 복사를 시작할 위치
             int blockOffset = dataIndex * splitBlockSize;
-            int blockHeightOffset = dataIndex * splitBlockHeightSize;
+            int blockHeightOffset = dataIndex * splitBlockHeightSize; 
 
             if (isLastPart)
             {
@@ -125,17 +130,19 @@ public class ChunkSync : NetworkBehaviour
             Array.Copy(byteBlockData, blockOffset, splitBlockData, 0, splitBlockSize);
             Array.Copy(byteBlockHeightData, blockHeightOffset, splitBlockHeight, 0, splitBlockHeightSize);
 
+            // 네트워크 메시지 선언 및 초기화
             ChunkMessage chunkMessage = new ChunkMessage
             {
                 blockInVoxel = splitBlockData,
                 blocksHeightInVoxelFloor = splitBlockHeight,
 
                 isLastPart = isLastPart,
-                x = i,
-                y = j,
-                chunkLoadingPercent = (i * chunk2DArray.GetLength(1) + j + 1) / (float)chunk2DArray.Length,
+                x = x,
+                y = y,
+                chunkLoadingPercent = (x * chunk2DArray.GetLength(1) + y + 1) / (float)chunk2DArray.Length,
             };
 
+            // 네트워크 메시지 발송
             conn.Send(chunkMessage);
         }
     }
