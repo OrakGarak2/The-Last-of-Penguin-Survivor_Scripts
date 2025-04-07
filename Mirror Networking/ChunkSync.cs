@@ -121,9 +121,9 @@ public class ChunkSync : NetworkBehaviour
             byte[] splitBlockData = new byte[splitBlockSize];
             byte[] splitBlockHeight = new byte[splitBlockHeightSize];
 
-            // Buffer.Block(복사할 배열, 복사를 시작할 위치, 복사될 배열, 복사되는 위치, 복사할 크기);
-            Buffer.BlockCopy(byteBlockData, blockOffset, splitBlockData, 0, splitBlockSize);
-            Buffer.BlockCopy(byteBlockHeightData, blockHeightOffset, splitBlockHeight, 0, splitBlockHeightSize);
+            // Array.Copy(복사할 배열, 복사를 시작할 위치, 복사될 배열, 복사되는 위치, 복사할 길이);
+            Array.Copy(byteBlockData, blockOffset, splitBlockData, 0, splitBlockSize);
+            Array.Copy(byteBlockHeightData, blockHeightOffset, splitBlockHeight, 0, splitBlockHeightSize);
 
             ChunkMessage chunkMessage = new ChunkMessage
             {
@@ -244,7 +244,7 @@ public class ChunkSync : NetworkBehaviour
 
             byte[] splitBlockData = new byte[splitBlockSize];
 
-            Buffer.BlockCopy(byteBlockData, blockOffset, splitBlockData, 0, splitBlockSize);
+            Array.Copy(byteBlockData, blockOffset, splitBlockData, 0, splitBlockSize);
 
             EditChunkMessage editChunkMessage = new EditChunkMessage
             {
@@ -352,7 +352,7 @@ public class ChunkSync : NetworkBehaviour
 
     #region 날마다 사라지는 블록 동기화
     private List<byte> receivedBlockInfo = new List<byte>();
-    private int dataChunkSize = 290000;
+    private const int dataChunkSize = 290000;
 
     public void SyncRemoveBlocks(List<BlockInfo> blockInfoList)
     {
