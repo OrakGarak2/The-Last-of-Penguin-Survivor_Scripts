@@ -5,6 +5,7 @@ using UnityEngine.UI;
 using Lop.Survivor.Event.Mission;
 using Mirror;
 using System.Collections.Generic;
+using System;
 
 public class MissionManager : NetworkBehaviour
 {
@@ -32,16 +33,8 @@ public class MissionManager : NetworkBehaviour
     private WaitForSeconds waitForMissionUIChange = new WaitForSeconds(1f);
 
     [Header("Mission Event")]
-    [SerializeField] private List<string> collectList;
-    [SerializeField] private List<string> makeList;
-    [SerializeField] private List<string> installationVitalizeList;
-    [SerializeField] private List<string> specialList;
-
-    public Dictionary<string, int> collectEvents                = new Dictionary<string, int>();
-    public Dictionary<string, int> makeEvents                   = new Dictionary<string, int>();
-    public Dictionary<string, int> installationVitalizeEvents   = new Dictionary<string, int>();
-    public Dictionary<string, int> deliverEvents                = new Dictionary<string, int>();
-    public Dictionary<string, int> specialEvents                = new Dictionary<string, int>();
+    // MissionType으로 어떤 분류의 미션인지 확인, string은 target의 이름, int는 미션을 클리어하기 위한 행위를 해야 하는 횟수
+    public Dictionary<MissionType, Dictionary<string, int>> eventDictionary = new Dictionary<MissionType, Dictionary<string, int>>();
 
     [SerializeField] private bool isMissionChange;
     private const int missionAmount = 41;
@@ -61,22 +54,17 @@ public class MissionManager : NetworkBehaviour
 
     private void EventDataLoad()
     {
-        foreach (string key in collectList)
+        foreach(MissionType type in Enum.GetValues(typeof(MissionType)))
         {
-            collectEvents.Add(key, 0);
+            eventDictionary.Add(type, new Dictionary<string, int>());
         }
-        foreach (string key in makeList)
+
+        foreach(var data in missionDatas.missionDatas)
         {
-            makeEvents.Add(key, 0);
-        }
-        foreach (string key in installationVitalizeList)
-        {
-            installationVitalizeEvents.Add(key, 0);
-            deliverEvents.Add(key, 0);
-        }
-        foreach (string key in specialList)
-        {
-            specialEvents.Add(key, 0);
+            if(eventDictionary[data.missionType].ContainsKey(data.nameText))
+            {
+                eventDictionary[data.missionType].Add(data.nameText, 0);
+            }
         }
     }
 
@@ -106,18 +94,14 @@ public class MissionManager : NetworkBehaviour
 
     private void MissionDataLoad()
     {
-        foreach (var missionData in missionDatas.missionDatas)
-        {
-            if (missionOrder == missionData.order)
-            {
-                nameText = missionData.nameText;
-                descText = missionData.descText;
-                missionType = missionData.missionType;
-                goalTarget = missionData.goalTarget;
-                goalValue = missionData.goalValue;
+        MissionData missionData = missionDatas.missionDatas[missionOrder];
 
-            }
-        }
+        nameText = missionData.nameText;
+        descText = missionData.descText;
+        missionType = missionData.missionType;
+        goalTarget = missionData.goalTarget;
+        goalValue = missionData.goalValue;
+
 
         if (isServer)
             SetStageOfCompletion();
@@ -154,24 +138,7 @@ public class MissionManager : NetworkBehaviour
 
     private void SetStageOfCompletion()
     {
-        switch (missionType)
-        {
-            case MissionType.Collect:
-                stageOfCompletionTMP.text = $"{collectEvents[goalTarget]} / {goalValue}";
-                break;
-            case MissionType.Make:
-                stageOfCompletionTMP.text = $"{makeEvents[goalTarget]} / {goalValue}";
-                break;
-            case MissionType.InstallationVitalize:
-                stageOfCompletionTMP.text = $"{installationVitalizeEvents[goalTarget]} / {goalValue}";
-                break;
-            case MissionType.Deliver:
-                stageOfCompletionTMP.text = $"{deliverEvents[goalTarget]} / {goalValue}";
-                break;
-            case MissionType.Special:
-                stageOfCompletionTMP.text = $"{specialEvents[goalTarget]} / {goalValue}";
-                break;
-        }
+        stageOfCompletionTMP.text = $"{eventDictionary[missionType][goalTarget]} / {goalValue}";
 
         RpcSetStageOfCompletion(stageOfCompletionTMP.text);
     }
@@ -187,13 +154,13 @@ public class MissionManager : NetworkBehaviour
     #region 수집된 수집 이벤트 줄이기
     public void RemoveCollectEvent(string target, int discount)
     {
-        if (collectEvents.ContainsKey(target))
+        if (eventDictionary[MissionType.Collect].ContainsKey(target))
         {
             if(isServerOnly)
             {
-                collectEvents[target] -= discount;
+                eventDictionary[MissionType.Collect][target] -= discount;
 
-                if (collectEvents[target] < 0) collectEvents[target] = 0;
+                if (eventDictionary[MissionType.Collect][target] < 0) eventDictionary[MissionType.Collect][target] = 0;
 
                 if (missionType == MissionType.Collect && target == goalTarget)
                 {
@@ -213,9 +180,9 @@ public class MissionManager : NetworkBehaviour
 
     private void ReceiveRemoveCollectEventMessage(NetworkConnection conn, RemoveCollectEventMessage msg)
     {
-        collectEvents[msg.target] -= msg.discount;
+        eventDictionary[MissionType.Collect][msg.target] -= msg.discount;
 
-        if (collectEvents[msg.target] < 0) collectEvents[msg.target] = 0;
+        if (eventDictionary[MissionType.Collect][msg.target] < 0) eventDictionary[MissionType.Collect][msg.target] = 0;
 
         if (missionType == MissionType.Collect && msg.target == goalTarget)
         {
@@ -230,7 +197,7 @@ public class MissionManager : NetworkBehaviour
     }
     #endregion
 
-    #region 이벤트 수집
+   #region 이벤트 수집
     /// <summary>
     /// 미션에 맞는 이벤트를 수집
     /// </summary>
@@ -238,52 +205,11 @@ public class MissionManager : NetworkBehaviour
     /// <param name="target">수집할 이벤트의 목표 대상</param>
     public void EventCollect(MissionType type, string target)
     {
+        if (LopNetworkManager.isLoading) { return; }
+
         if (isServer)
         {
-            switch (type)
-            {
-                case MissionType.Collect:
-
-                    if (collectEvents.ContainsKey(target))
-                    {
-                        if (++collectEvents[target] >= goalValue && target == goalTarget && missionType == type)
-                            IncreaseMissionOrder();
-                    }
-                    break;
-                case MissionType.Make:
-                    if (makeEvents.ContainsKey(target))
-                    {
-                        if (++makeEvents[target] >= goalValue && target == goalTarget && missionType == type)
-                            IncreaseMissionOrder();
-                    }
-                    break;
-                case MissionType.InstallationVitalize:
-                    if (installationVitalizeEvents.ContainsKey(target))
-                    {
-                        if (++installationVitalizeEvents[target] >= goalValue && target == goalTarget && missionType == type)
-                            IncreaseMissionOrder();
-                    }
-                    break;
-                case MissionType.Deliver:
-                    if (deliverEvents.ContainsKey(target))
-                    {
-                        if (++deliverEvents[target] >= goalValue && target == goalTarget && missionType == type)
-                            IncreaseMissionOrder();
-                    }
-                    break;
-                case MissionType.Special:
-                    if (specialEvents.ContainsKey(target))
-                    {
-                        if (++specialEvents[target] >= goalValue && target == goalTarget && missionType == type)
-                            IncreaseMissionOrder();
-                    }
-                    break;
-            }
-
-            if (missionType == type && goalTarget == target)
-            {
-                SetStageOfCompletion();
-            }
+            UpdateEventCollectState(type, target);
         }
         else
         {
@@ -295,52 +221,32 @@ public class MissionManager : NetworkBehaviour
         }
     }
 
+    /// <summary>
+    /// 이벤트 수집 상태 업데이트
+    /// </summary>
+    /// <param name="type"></param>
+    /// <param name="target"></param>
+    private void UpdateEventCollectState(MissionType type, string target)
+    {
+        if(eventDictionary[type].ContainsKey(target))
+            {
+                eventDictionary[type][target]++;
+
+                if(target == goalTarget && missionType == type)
+                {     
+                    SetStageOfCompletion();
+                    
+                    if(eventDictionary[type][target] >= goalValue)
+                    {
+                        IncreaseMissionOrder();
+                    }        
+                }
+            }
+    }
+
     private void ReceiveEventCollectMessage(NetworkConnection conn, EventCollectMessage msg)
     {
-        switch (msg.type)
-        {
-            case MissionType.Collect:
-
-                if (collectEvents.ContainsKey(msg.target))
-                {
-                    if (++collectEvents[msg.target] >= goalValue && msg.target == goalTarget && missionType == msg.type)
-                        IncreaseMissionOrder();
-                }
-                break;
-            case MissionType.Make:
-                if (makeEvents.ContainsKey(msg.target))
-                {
-                    if (++makeEvents[msg.target] >= goalValue && msg.target == goalTarget && missionType == msg.type)
-                        IncreaseMissionOrder();
-                }
-                break;
-            case MissionType.InstallationVitalize:
-                if (installationVitalizeEvents.ContainsKey(msg.target))
-                {
-                    if (++installationVitalizeEvents[msg.target] >= goalValue && msg.target == goalTarget && missionType == msg.type)
-                        IncreaseMissionOrder();
-                }
-                break;
-            case MissionType.Deliver:
-                if (deliverEvents.ContainsKey(msg.target))
-                {
-                    if (++deliverEvents[msg.target] >= goalValue && msg.target == goalTarget && missionType == msg.type)
-                        IncreaseMissionOrder();
-                }
-                break;
-            case MissionType.Special:
-                if (specialEvents.ContainsKey(msg.target))
-                {
-                    if (++specialEvents[msg.target] >= goalValue && msg.target == goalTarget && missionType == msg.type)
-                        IncreaseMissionOrder();
-                }
-                break;
-        }
-
-        if (missionType == msg.type && goalTarget == msg.target)
-        {
-            SetStageOfCompletion();
-        }
+        UpdateEventCollectState(msg.type, msg.target);
     }
 
     public struct EventCollectMessage : NetworkMessage
@@ -354,7 +260,7 @@ public class MissionManager : NetworkBehaviour
     {
         if (!isMissionChange && missionAmount > missionOrder)
         {
-            specialEvents["Mission"]++;
+            eventDictionary[MissionType.Special]["Mission"]++;
             missionOrder++;
         }
         else if (missionAmount == missionOrder)
@@ -365,43 +271,14 @@ public class MissionManager : NetworkBehaviour
     }
 
     #region 미션 클리어
+    // 이미 미션 클리어 조건을 충족했는지 확인
     public void ImmediatelyCheckMissionClear()
     {
         if (!isServer) { return; }
 
-        switch (missionType)
+        if (eventDictionary[missionType].ContainsKey(goalTarget) && eventDictionary[missionType][goalTarget] >= goalValue)
         {
-            case MissionType.Collect:
-
-                if (collectEvents.ContainsKey(goalTarget) && collectEvents[goalTarget] >= goalValue)
-                {
-                    IncreaseMissionOrder();
-                }
-                break;
-            case MissionType.Make:
-                if (makeEvents.ContainsKey(goalTarget) && makeEvents[goalTarget] >= goalValue)
-                {
-                    IncreaseMissionOrder();
-                }
-                break;
-            case MissionType.InstallationVitalize:
-                if (installationVitalizeEvents.ContainsKey(goalTarget) && installationVitalizeEvents[goalTarget] >= goalValue)
-                {
-                    IncreaseMissionOrder();
-                }
-                break;
-            case MissionType.Deliver:
-                if (deliverEvents.ContainsKey(goalTarget) && deliverEvents[goalTarget] >= goalValue)
-                {
-                    IncreaseMissionOrder();
-                }
-                break;
-            case MissionType.Special:
-                if (specialEvents.ContainsKey(goalTarget) && specialEvents[goalTarget] >= goalValue)
-                {
-                    IncreaseMissionOrder();
-                }
-                break;
+            IncreaseMissionOrder();
         }
     }
 
@@ -415,7 +292,7 @@ public class MissionManager : NetworkBehaviour
         isMissionChange = true;
         checkmark.SetActive(true);
         checkmark.GetComponent<Animator>().SetTrigger("Mission");
-        SoundManager.Instance.PlaySFX("NextDay");
+        SoundManager.Instance.PlaySFX("NextDay"); 
 
         descTMP.fontStyle = FontStyles.Strikethrough;
 
