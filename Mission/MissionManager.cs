@@ -61,9 +61,9 @@ public class MissionManager : NetworkBehaviour
 
         foreach(var data in missionDatas.missionDatas)
         {
-            if(eventDictionary[data.missionType].ContainsKey(data.nameText))
+            if(!eventDictionary[data.missionType].ContainsKey(data.goalTarget))
             {
-                eventDictionary[data.missionType].Add(data.nameText, 0);
+                eventDictionary[data.missionType].Add(data.goalTarget, 0);
             }
         }
     }
