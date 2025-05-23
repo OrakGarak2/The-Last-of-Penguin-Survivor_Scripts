@@ -7,10 +7,21 @@ using System.Security.Principal;
 
 public class BuildingSync : NetworkBehaviour
 {
+    [SyncVar(hook = nameof(HookCurrentDurability))] public float currentDurability;
+    private BuildingFrame interactionButton;
+    private Slider durabilitySlider;
+
     public override void OnStartServer()
     {
         base.OnStartServer();
         NetworkServer.RegisterHandler<BuildingSpawnMessage>(ReceiveBuildingSpawnMessage);
+        NetworkServer.ReplaceHandler<DurabilityMessage>(ReceiveDurabilityMessage);
+
+        interactionButton = GetComponent<BuildingFrame>();
+        if (interactionButton == null) { return; }
+
+        durabilitySlider = interactionButton.durabilitySlider;
+        if (isServer) currentDurability = interactionButton.currentDurability;
     }
 
     public void SpawnBuilding(GameObject building)
@@ -59,4 +70,47 @@ public class BuildingSync : NetworkBehaviour
         public int buildingPosZ;
         public float buildingRotY;
     }
+
+    #region 빌딩 내구도 동기화
+
+    private void OnDisable()
+    {
+        if (interactionButton == null) { return; }
+
+        if (isServer)
+            NetworkServer.UnregisterHandler<DurabilityMessage>();
+    }
+
+    private void HookCurrentDurability(float oldDurability, float newDurability)
+    {
+        if (interactionButton == null) { return; }
+
+        if (durabilitySlider == null) return;
+        durabilitySlider.value = newDurability;
+    }
+
+    public void SendDurabilityMessage(float variation)
+    {
+        if (interactionButton == null) { return; }
+
+        DurabilityMessage durabilityMessage = new DurabilityMessage
+        {
+            variation = variation
+        };
+
+        NetworkClient.Send(durabilityMessage);
+    }
+
+    private void ReceiveDurabilityMessage(NetworkConnection conn, DurabilityMessage message)
+    {
+        if (interactionButton == null) { return; }
+
+        interactionButton.UpdateDurability(message.variation);
+    }
+
+    public struct DurabilityMessage : NetworkMessage
+    {
+        public float variation;
+    }
+    #endregion
 }
