@@ -6,7 +6,6 @@ using UnityEngine.UI;
 
 public class BuildingMeshSync : NetworkBehaviour
 {
-    #region 빌딩 메쉬 동기화
     [SyncVar(hook = nameof(OnChildRotationChanged))] public float meshRotY;
     [SyncVar(hook = nameof(OnChildPositionChanged))] public float meshPosY;
 
@@ -39,5 +38,4 @@ public class BuildingMeshSync : NetworkBehaviour
             MeshTransform.position = new Vector3(MeshTransform.position.x, newPosY, MeshTransform.position.z);
         }
     }
-    #endregion
 }

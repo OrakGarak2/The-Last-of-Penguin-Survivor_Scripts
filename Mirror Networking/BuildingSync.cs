@@ -24,6 +24,7 @@ public class BuildingSync : NetworkBehaviour
         if (isServer) currentDurability = interactionButton.currentDurability;
     }
 
+    #region 빌딩 생성 동기화
     public void SpawnBuilding(GameObject building)
     {
         NetworkServer.Spawn(building);  // 서버에서 직접 스폰
@@ -70,6 +71,7 @@ public class BuildingSync : NetworkBehaviour
         public int buildingPosZ;
         public float buildingRotY;
     }
+    #endregion
 
     #region 빌딩 내구도 동기화
 
